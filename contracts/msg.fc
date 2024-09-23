@@ -1,0 +1,98 @@
+#include "payment/stdlib.fc";
+
+const msg::send_mode::default = 0;
+const msg::send_mode::separate_gas = 1;
+const msg::send_mode::ignore_errors = 2;
+const msg::send_mode::destroy_if_zero = 32;
+const msg::send_mode::carry_remaining_value = 64;
+const msg::send_mode::carry_remaining_balance = 128;
+
+() msg::transfer(slice recipient, int value) impure {
+
+    var msg = begin_cell()
+        .store_uint(0x10, 6)
+        .store_slice(recipient)
+        .store_coins(value)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_uint(0, 32)
+        .end_cell();
+
+    send_raw_message(msg, msg::send_mode::separate_gas);
+}
+
+() msg::transfer_jetton_token(
+    slice sender_wallet,       ;; 发送方的 Jetton 钱包地址
+    slice recipient,    ;; 接收方的 Jetton 钱包地址
+    int token_amount,          ;; 转移的 Jetton 数量
+    int ton_amount,            ;; 附加的 TON 数量
+    slice response_destination ;; 响应目标地址（通常是发送方的智能合约地址）
+) impure {
+    var msg = begin_cell()
+        .store_uint(0x18, 6)            ;; 消息类型（内部消息）
+        .store_slice(sender_wallet)     ;; 发送方的 Jetton 钱包地址
+        .store_coins(ton_amount)        ;; 附加的 TON 数量
+        .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1) ;; 设置 body 标志
+        .store_uint(0x0f8a7ea5, 32)     ;; 操作码：转账通知
+        .store_uint(0, 64)              ;; 查询 ID
+        .store_coins(token_amount)      ;; Jetton 数量
+        .store_slice(recipient)  ;; 接收方的 Jetton 钱包地址
+        .store_slice(response_destination) ;; 响应目标地址
+        .store_coins(1)                 ;; 转发费
+        .store_uint(0, 1)               ;; 自定义负载标志
+        .end_cell();
+
+    send_raw_message(msg, msg::send_mode::separate_gas);
+}
+
+() msg::swap_and_transfer(
+    slice dex_address,          ;; ston.fi router address
+    int amount_in,              ;; 输入代币数量
+    int min_amount_out,         ;; 最小输出代币数量
+    slice sender,               ;; 发送者地址
+    slice recipient             ;; 接收者地址
+) impure {
+
+    ;; 1. Perform swap
+    cell swap_payload = begin_cell()
+        .store_uint(0x25938561, 32)         ;; swap operation code
+        .store_coins(min_amount_out)        ;; 最小输出代币数量
+        .store_slice(recipient)      ;; 接收者地址
+        .store_uint(0, 1)                   ;; 不使用回调
+        .end_cell();
+
+    cell swap_msg = begin_cell()
+        .store_uint(0x18, 6)            ;; 消息类型（内部消息）
+        .store_slice(dex_address)       ;; DEX 地址
+        .store_coins(0)                 ;; 附加的 TON 数量
+        .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_uint(0x7362d09c, 32)     ;; swap operation code
+        .store_coins(amount_in)         ;; 输入代币数量
+        .store_slice(sender)            ;; 发送者地址
+        .store_uint(1, 1)               ;; 有附加数据
+        .store_ref(swap_payload)
+        .end_cell();
+
+    send_raw_message(swap_msg, 64);  ;; mode 64 to send all remaining gas
+
+    ;; 2. Transfer received tokens to recipient
+    cell transfer_msg = begin_cell()
+        .store_uint(0xf8a7ea5, 32)   ;; transfer operation code
+        .store_uint(0, 64)           ;; query_id
+        .store_coins(0)              ;; amount (transfer all balance)
+        .store_slice(recipient)      ;; recipient address
+        .store_slice(my_address())   ;; response destination
+        .store_uint(0, 1)            ;; no custom payload
+        .store_coins(1)              ;; forward amount
+        .store_uint(0, 1)            ;; no forward payload
+        .end_cell();
+
+    cell msg = begin_cell()
+        .store_uint(0x18, 6)         ;; internal message info
+        .store_coins(0)              ;; amount of TON to send
+        .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)  ;; message flags
+        .store_ref(transfer_msg)     ;; store transfer message as reference
+        .end_cell();
+
+    send_raw_message(msg, 64);       ;; send with carry all remaining balance
+    
+}
