@@ -1,8 +1,8 @@
 import { Address, beginCell, toNano } from '@ton/core';
 import { compile, NetworkProvider } from '@ton/blueprint';
 
-import { cliConfig } from '../tests/helpers';
-import { Minter } from '../wrappers/Master';
+import { cliConfig } from '../test_bak/helpers';
+import { Master } from '../wrappers/Master';
 import { color, getExpLink, getSeqNo, metadataCell, onchainMetadata, waitConfirm, waitSeqNoChange } from '../helpers';
 
 export async function run(provider: NetworkProvider) {
@@ -23,7 +23,7 @@ export async function run(provider: NetworkProvider) {
         ? config.metadata
         : onchainMetadata(config.metadata)
 
-    const jettonMinter = provider.open(Minter.createFromAddress(config.minterAddress));
+    const jettonMinter = provider.open(Master.createFromAddress(config.minterAddress));
 
     color.log(` - <y>Changing meta of <b>${getExpLink(provider, config.minterAddress)}`)
     waitConfirm()

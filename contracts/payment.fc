@@ -1,5 +1,5 @@
-#include "payment/stdlib.fc";
-#include "msg.fc";
+#include "common/imports.fc";
+#include "payment/imports.fc";
 
 global slice ctx_owner;
 global int ctx_fee;
@@ -15,72 +15,53 @@ global int ctx_fee;
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     slice cs = in_msg_full.begin_parse();
+
     int flags = cs~load_uint(4);
 
-    if (flags & 1) {
+    int bounced = flags & 1;
+    if (bounced) {
         return ();
     }
-
     slice sender = cs~load_msg_addr();
 
     load_data();
 
-    int op = in_msg_body~load_uint(32);
+    (int op, int query_id) = (in_msg_body~load_uint(32), in_msg_body~load_uint(64));
 
-    if (op == "op::transfer"c) {
+    if (op == op::transfer_notification) {
 
-        cell inner_msg = in_msg_body~load_ref();
-        slice payload = inner_msg.begin_parse();
-        slice recipient = payload~load_msg_addr();
+        (int jetton_amount, slice to_address) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr());
 
-        int value = my_balance - ctx_fee;
-       
-        msg::transfer(
-            recipient,
-            value
-        );
-    }
-
-    elseif (op == "op:transfer_jetton_token"c) {
-
-        cell inner_msg = in_msg_body~load_ref();
-        slice payload = inner_msg.begin_parse();
-
-        int jetton_amount = payload~load_coins();
-        slice sender_jetton_wallet = payload~load_msg_addr();
-        slice recipient_jetton_wallet = payload~load_msg_addr();
-
-        int ton_value = my_balance - ctx_fee;
-
-        msg::transfer_jetton_token(
-            sender_jetton_wallet,    ;; 发送方的 Jetton 钱包地址
-            recipient_jetton_wallet, ;; 接收方的 Jetton 钱包地址
-            jetton_amount,           ;; 要转移的 Jetton 数量
-            ton_value,               ;; 附加的 TON 数量
-            my_address()             ;; 当前合约地址作为响应目标
-        );
+        ;; swap swapPayload
+        slice ref_ds = in_msg_body~load_ref().begin_parse(); 
         
+        ;; handle_swap_op
+        ;; int innder_op = ref_ds~load_uint(32);
+        ;; slice token_wallet1 = ref_ds~load_msg_addr();
+        ;; int min_out = ref_ds~load_coins();
+        ;; slice to_address = ref_ds~load_msg_addr();
+        ;; int has_ref = ref_ds~load_uint(1);
+
+        ;; force_chain(WORKCHAIN, token_wallet1, WRONG_WORKCHAIN);
+
+        ;; builder body_ref = begin_cell()
+        ;;     .store_slice(from_user);
+
+        ;; if (has_ref) {
+        ;;     slice ref_address = ref_ds~load_msg_addr();
+        ;;     body_ref = body_ref.store_slice(ref_address);
+        ;; body = body.store_ref(body_ref.end_cell());
+
+
+        var _body = create_simple_transfer_body(query_id, 1, 1, to_address);
+        _body = _body.store_uint(0, 32);                ;; append exit code
+        
+        send_simple_message(jetton_amount, to_address, _body.end_cell(), 64); ;; CARRY_REMAINING_GAS
+
+        return ();
     }
 
-    elseif (op == "op:swap_and_transfer"c) {                ;; Trigger swap and transfer
-
-        slice dex_address = in_msg_body~load_msg_addr();    ;; ston-fi address
-        int amount_in = in_msg_body~load_coins();           ;; 
-        int min_amount_out = in_msg_body~load_coins();
-
-        slice from_address = in_msg_body~load_msg_addr();
-        slice recipient = in_msg_body~load_msg_addr();
-
-        msg::swap_and_transfer(
-            dex_address,
-            token_in,
-            token_out,
-            amount_in, 
-            min_amount_out, 
-            sender,
-            recipient
-        );
-    }
+    throw(0xffff);
 }
  
 int fee() method_id {

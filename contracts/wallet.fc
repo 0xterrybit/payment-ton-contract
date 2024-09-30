@@ -29,7 +29,7 @@
     if handle_ext_wallet_messages() {
         return ();
     }
-
+    
     if equal_slices(ctx.at(SENDER), storage::owner_address) {
         if handle_owner_messages() {
             return ();
@@ -41,6 +41,6 @@
             return ();
         }
     }
-
+    
     throw(error::wrong_op);
 }

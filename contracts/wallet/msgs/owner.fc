@@ -2,6 +2,7 @@
     slice in_msg_body = ctx.at(BODY);
 
     if ctx.at(OPCODE) == op::ft::transfer { 
+        
         int jetton_amount = in_msg_body~load_coins();
         slice to_owner_address = in_msg_body~load_msg_addr();
         slice response_address = in_msg_body~load_msg_addr();

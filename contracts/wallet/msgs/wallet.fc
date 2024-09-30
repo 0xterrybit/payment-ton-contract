@@ -13,8 +13,7 @@
             my_code()
         );
 
-        throw_unless(error::invalid_caller, 
-            equal_slices(ctx.at(SENDER), wallet~address(params::workchain)));
+        throw_unless(error::invalid_caller,  equal_slices(ctx.at(SENDER), wallet~address(params::workchain)));
 
         storage::balance += jetton_amount;
         storage::save();
@@ -22,7 +21,6 @@
         reserves::max_balance(storage_fee::wallet);
 
         if forward_ton_amount {
-
             msgs::send_nobounce(
                 forward_ton_amount, 
                 storage::owner_address, 

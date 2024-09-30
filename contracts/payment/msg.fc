@@ -1,0 +1,19 @@
+
+const msg::send_mode::default = 0;
+const msg::send_mode::separate_gas = 1;
+const msg::send_mode::ignore_errors = 2;
+const msg::send_mode::destroy_if_zero = 32;
+const msg::send_mode::carry_remaining_value = 64;
+const msg::send_mode::carry_remaining_balance = 128;
+
+() send_simple_message(int amount, slice to, cell body, int mode) impure inline_ref {
+    cell msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(to)
+        .store_coins(amount)
+        .store_uint(1, 107)
+        .store_ref(body)
+    .end_cell();
+    
+    send_raw_message(msg, mode);
+}

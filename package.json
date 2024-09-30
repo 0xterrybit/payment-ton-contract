@@ -4,7 +4,8 @@
     "scripts": {
         "start": "blueprint run",
         "build": "blueprint build",
-        "test": "jest --verbose --detectOpenHandles"
+        "test": "jest --verbose",
+        "fetch_price": "ts-node scripts/fetch_price.ts"
     },
     "devDependencies": {
         "@ston-fi/funcbox": "^0.1.0",
@@ -29,7 +30,7 @@
         "typescript": "^5.4.5"
     },
     "dependencies": {
-        "@ston-fi/sdk": "^1.2.0",
-        "@ton-community/test-utils": "^0.3.0"
+        "@ston-fi/api": "^0.12.1",
+        "@ston-fi/sdk": "^2.0.0-rc.5"
     }
 }

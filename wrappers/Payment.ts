@@ -69,7 +69,9 @@ export class Payment implements Contract {
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell().storeUint(crc32("op::topup"), 32).endCell(),
+            body: beginCell()
+                .storeUint(crc32("op::topup"), 32)
+                .endCell(),
         })
     }
 

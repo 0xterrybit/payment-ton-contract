@@ -2,7 +2,7 @@ import { beginCell, toNano } from '@ton/core';
 import { Minter } from '../wrappers/Master';
 import { compile, NetworkProvider } from '@ton/blueprint';
 import { buildLibFromCell, color, Deployer, findArgs, metadataCell, onchainMetadata } from '../helpers';
-import { cliConfig } from '../tests/helpers';
+import { cliConfig } from '../test_bak/helpers';
 import { Address } from '@ton/core';
 
 export async function run(provider: NetworkProvider) {
