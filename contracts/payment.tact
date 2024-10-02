@@ -12,6 +12,10 @@ const RESEND_VALUE: Int = ton("0.15");
 const NOT_ENOUGTH_VALUE: Int = 1001;
 
 
+const SwapTonToJetton_Amount: Int = ton("0.2");
+const SwapTonToJetton_ForwardGASAmount: Int = ton("0.185");
+const SwapJettonToJetton_ForwardGasAmount: Int = ton("0.175");
+
 // S̲t̲r̲u̲c̲t̲s̲ a̲n̲d̲ m̲e̲t̲h̲o̲d̲s̲ f̲r̲o̲m̲ F̲u̲n̲C̲
 @name(store_dict)
 extends native storeDict(self: Builder, c: Cell): Builder;
@@ -56,6 +60,12 @@ extends native idictGetMin(self: Cell, kl: Int): DictGetNextRes;
 extends native idictGetNext(self: Cell, kl: Int, p: Int): DictGetNextRes;
 //____________________________________________________________
 
+// message(0x25938561) SwapPayload {
+//     queryId: Int as uint64;
+//     walletTokenBAddress: Int as coins;
+//     fromAddress: Address;
+// }
+
 // M̲e̲s̲s̲a̲g̲e̲s̲
 message(0x7362d09c) TokenNotification {
     queryId: Int as uint64;
@@ -83,8 +93,18 @@ message PayTon {
 
 message PayTonToJetton {
     queryId: Int as uint64;
-    length: Int as uint64;
-    sendInfo: map<Int, SendInfo>;
+
+    dexTargetRouter: Address;
+
+    askJettonWalletAddress: Address;
+    refundAddress: Address;
+    excessesAddress: Address;
+    deadline: Int as uint64;
+
+
+    // ref
+    minAskAmount: Int as coins;
+    receiverAddress: Address
 }
 
 message SetSendCost {
@@ -134,7 +154,7 @@ contract Payment with Deployable, Ownable, OwnableTransferable, Stoppable, Resum
             if ((msg.sendInfo.get(idx) == null) || (idx - msg.length >= 0)) {
                 needBreak = true;
             }
- 
+
 
         } until (needBreak);
 
@@ -150,12 +170,20 @@ contract Payment with Deployable, Ownable, OwnableTransferable, Stoppable, Resum
     // Method for manually sending native TONs to different recipients
     receive(msg: PayTonToJetton) {
         let ctx: Context = context();
-        
-        //Reserve balance on Contract to avoid freeze
-        nativeReserve(
-            max(MINIMAL_CONTRACT_BALANCE, myBalance() - ctx.value)
-        , 0);
- 
+        send(SendParameters
+        {
+            to: msg.dexTargetRouter,
+            value: self.sendCost,
+            mode: SendPayGasSeparately | SendIgnoreErrors,
+            body: beginCell()
+                    .storeUint(0x6664de2a, 32)
+                    .storeAddress(msg.askJettonWalletAddress)
+                    .storeAddress(msg.refundAddress)
+                    .storeAddress(msg.excessesAddress)
+                    .storeUint(msg.deadline, 64)
+                    .endCell()
+
+        });
     }
 
     // Method for sending jetton tokens to different recipients
@@ -166,13 +194,59 @@ contract Payment with Deployable, Ownable, OwnableTransferable, Stoppable, Resum
         nativeReserve(
             max(MINIMAL_CONTRACT_BALANCE, myBalance() - ctx.value)
         , 0);
+        
+        // spit token
+        let op: Int = msg.forward_payload.loadUint(8);
 
+        if (op == 0x60) {
+            self.batchTransferJetton(msg);
+        } 
+        else if (op == 0x61) {                 // swap jetton to jetton (usdt)
+            self.swapJettonToJetton(msg);
+        }
+
+        send(SendParameters
+        {
+            to: msg.from,
+            value: 0,
+            mode: SendRemainingValue + SendIgnoreErrors,
+            body: "Finish".asComment()
+        });
+    }
+    
+    fun swapJettonToJetton(msg: TokenNotification) {
+
+        let swapPayload: Slice = msg.forward_payload.loadRef().beginParse();
+        let targetRouter: Address = swapPayload.loadAddress();
+        let amount: Int = swapPayload.loadUint(32);
+
+        send(SendParameters
+        {
+            to: sender(),
+            value: self.sendCost,
+            mode: SendPayGasSeparately | SendIgnoreErrors,
+            body: beginCell()
+                .storeUint(0xf8a7ea5, 32)
+                .storeUint(msg.queryId, 64)
+                .storeCoins(SwapTonToJetton_Amount)
+                .storeSlice(targetRouter.asSlice())
+                .storeSlice(self.owner.asSlice())
+                .storeUint(0, 1)
+                .storeCoins(SwapJettonToJetton_ForwardGasAmount)
+                .storeUint(0, 1)
+                .endCell()
+        });
+
+        // sendInfo = contDict.dict.idictGetNext(257, sendInfo.key);
+
+    }
+
+    fun batchTransferJetton(msg: TokenNotification) {
+
+        // spit token
         let length: Int = msg.forward_payload.loadUint(64);
 
         let sendersContent: Slice = msg.forward_payload.loadRef().beginParse();
-        
-        // Pay Jetton Token with no swap
-        nativeThrowUnless(905, sendersContent.loadUint(8) == 0);
 
         let contDict: DictLoadRes = sendersContent.loadDict();  
         
@@ -204,18 +278,8 @@ contract Payment with Deployable, Ownable, OwnableTransferable, Stoppable, Resum
 
             sendInfo = contDict.dict.idictGetNext(257, sendInfo.key);
         }
-
-        send(SendParameters
-        {
-            to: msg.from,
-            value: 0,
-            mode: SendRemainingValue + SendIgnoreErrors,
-            body: "Finish".asComment()
-        });
     }
 
-
-    
 
     //Method for manually withdrawing all TONs to the owner’s address
     receive("withdraw") {

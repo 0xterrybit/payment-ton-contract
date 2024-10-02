@@ -152,7 +152,8 @@ contract JettonDefaultWallet {
         self.master = master;
     }
 
-    receive(msg: TokenTransfer) { // 0xf8a7ea5
+    // 0xf8a7ea5
+    receive(msg: TokenTransfer) {
         
         let ctx: Context = context(); // Check sender
         require(ctx.sender == self.owner, "Invalid sender");
