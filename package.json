@@ -1,5 +1,5 @@
 {
-    "name": "Ton-Jetton-Distribute-Contract",
+    "name": "rns_ton_payment",
     "version": "0.0.1",
     "scripts": {
         "start": "blueprint run",
